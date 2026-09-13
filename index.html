@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vidzora AI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0b12;color:#fff;font-family:Arial,sans-serif;min-height:100vh}nav{padding:22px 7%;border-bottom:1px solid #252532;display:flex;justify-content:space-between}.logo{font-size:25px;font-weight:800}.logo span{color:#a78bfa}main{max-width:850px;margin:65px auto;padding:20px;text-align:center}h1{font-size:clamp(36px,7vw,60px);margin:10px 0}.gradient{background:linear-gradient(90deg,#8b5cf6,#ec4899);-webkit-background-clip:text;color:transparent}p{color:#aaa;font-size:18px}.box,#result{background:#151520;border:1px solid #302d40;border-radius:18px;padding:14px;margin-top:30px}textarea{width:100%;height:150px;background:transparent;border:0;outline:0;color:#fff;padding:12px;font-size:17px;resize:vertical}button{width:100%;padding:17px;border:0;border-radius:12px;background:linear-gradient(90deg,#7c3aed,#db2777);color:white;font-size:17px;font-weight:bold;cursor:pointer}button:disabled{opacity:.6;cursor:wait}#result{display:none;color:#bbb;line-height:1.6}video{width:100%;border-radius:12px;margin-top:15px}a.download{display:block;margin-top:14px;color:#c4b5fd}small{color:#888}
+</style>
+</head>
+<body>
+<nav><div class="logo">Vidzora <span>AI</span></div><div>AI Video Generator</div></nav>
+<main>
+<h1>Create videos with <span class="gradient">AI</span></h1>
+<p>Write an idea and turn it into a short video.</p>
+<div class="box">
+<textarea id="prompt" placeholder="Example: A cute talking orange on a kitchen table, funny expressions, cinematic lighting..."></textarea>
+<button id="generateBtn">✨ Generate Video</button>
+</div>
+<div id="result" aria-live="polite"></div>
+</main>
+<script>
+const promptInput=document.getElementById('prompt');
+const button=document.getElementById('generateBtn');
+const result=document.getElementById('result');
+function show(message){result.style.display='block';result.innerHTML=message;}
+async function generate(){
+ const prompt=promptInput.value.trim();
+ if(!prompt){show('⚠️ Write your video idea first.');return;}
+ button.disabled=true;button.textContent='⏳ Generating...';
+ show('🎬 Sending your idea to the AI model...');
+ try{
+  const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+  const prediction=await response.json();
+  if(!response.ok) throw new Error(prediction.error||'Could not start generation');
+  show('🎬 Your video is being created...<br><small>This can take a few minutes.</small>');
+  await poll(prediction.id);
+ }catch(error){show('❌ '+error.message);button.disabled=false;button.textContent='✨ Generate Video';}
+}
+async function poll(id){
+ const timer=setInterval(async()=>{
+  try{
+   const response=await fetch('/api/status?id='+encodeURIComponent(id));
+   const data=await response.json();
+   if(data.status==='succeeded'){
+    clearInterval(timer);button.disabled=false;button.textContent='✨ Generate Video';
+    const url=Array.isArray(data.output)?data.output[0]:data.output;
+    show('✅ Video ready!<video controls src="'+url+'"></video><a class="download" href="'+url+'" target="_blank" rel="noopener">Open / download video</a>');
+   }else if(['failed','canceled'].includes(data.status)){
+    clearInterval(timer);button.disabled=false;button.textContent='✨ Generate Video';show('❌ Generation '+data.status+'. Please try another prompt.');
+   }
+  }catch(error){clearInterval(timer);button.disabled=false;button.textContent='✨ Generate Video';show('❌ '+error.message);}
+ },4000);
+}
+button.addEventListener('click',generate);
+</script>
+</body>
+</html>
